@@ -1,0 +1,53 @@
+- hosts: proxy
+  become: yes
+  vars:
+    name: "Foo"
+    html_root: "/var/www/html"
+  tasks: 
+    - name: "install http server :)"
+      yum:
+        name: nginx
+        state: latest
+    - name: "configure server"
+      template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/conf.d/commerce.conf
+        owner: nginx
+    - name: "start service"
+      service:
+        name: nginx
+        state: restarted
+    - file:
+        path: "{{ html_root }}"
+        state: directory
+    - template:
+        src: templates/index.html.j2
+        dest: "{{ html_root }}/index.html"
+- hosts: app
+  become: yes
+  tasks:
+    - name: "install python 2"
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+    - name: "install python-pip"
+      yum: 
+        name: python-pip
+        state: latest
+    - name: "install Flask"
+      pip:
+        name: flask
+    - template:
+        src: templates/flaskapp.service
+        dest: /etc/systemd/system/flask.service
+    - template:
+        src: templates/hello.py
+        dest: /
+    - template:
+        src: templates/flaskapp.config
+        dest: /etc/sysconfig/flaskapp-config
+    - user:
+        name: flaskapp
+        shell: /sbin/nologin
+    - name: "restart"
+      systemd:
+        name: flask    
+        state: restarted
